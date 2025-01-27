@@ -1,0 +1,17 @@
+.sidebar {
+  width: 250px;
+  position: fixed;
+  top: 56px;
+  left: 0;
+  transition: transform 0.3s ease;
+  z-index: 1050;
+}
+
+.sidebar-container.closed {
+  transform: translateX(-100%);
+}
+
+.closed {
+  width: 0px;
+  display: none;
+}

@@ -1,0 +1,9 @@
+<div class="sidebar bg-light vh-100 p-3" [class.closed]="!isSidebarOpen" >
+  <h5>Previous Chats</h5>
+  <ul class="list-group">
+    <li class="list-group-item" *ngFor="let chat of chats">
+      <i class="text-primary fas fa-comments me-2"></i>
+      {{ chat }}
+    </li>
+  </ul>
+</div>
