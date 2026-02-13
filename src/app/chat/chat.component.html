@@ -1,6 +1,6 @@
 <div class="chat-container d-flex flex-column">
   <div class="d-flex flex-column align-items-center justify-content-center h-100 w-100" *ngIf="messages.length == 0">
-    <h1 class="my-1 text-center">Welcome to Samprama DocPilot</h1>
+    <h1 class="my-1 text-center">Welcome to DocPilot</h1>
     <p class="my-1 text-secondary text-center">Let your documents do the talking</p>
   </div>
   <div class="messages flex-grow-1 p-3" #messagesContainer>
@@ -13,6 +13,11 @@
         </div>
         <div class="d-flex h-100">
           <div class="bubble">
+            <div
+              *ngIf="message.type == 'ai'"
+              style="color: gray"
+              [innerHTML]="message.status"
+            ></div>
             <div
               [innerHTML]="message.type == 'ai' ? renderMarkdown(message.content || '') : message.content"
             ></div>
@@ -32,7 +37,7 @@
     ></textarea>
     <button
       class="btn btn-primary rounded-circle"
-      (click)="sendMessage()"
+      (click)="streamResponse()"
       [disabled]="!this.newInput.trim()"
     >
       <i class="fas fa-paper-plane"></i>

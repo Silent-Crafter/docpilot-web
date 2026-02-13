@@ -5,10 +5,12 @@ import {marked} from 'marked';
 import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {ApiService} from '../api.service';
 import {LlmResponse} from '../api.types';
+import {Observable, Subscription} from 'rxjs';
 
 interface Message {
   type: string;
   content: string;
+  status: string;
 }
 
 @Component({
@@ -30,6 +32,8 @@ export class ChatComponent implements AfterViewChecked {
   messages: Message[] = [];
   newInput: string = '';
 
+  private streamSub?: Subscription;
+
   ngAfterViewChecked() {
     this.scrollToBottom();
   }
@@ -40,11 +44,106 @@ export class ChatComponent implements AfterViewChecked {
     ele.scrollTop = ele.scrollHeight;
   }
 
+  streamResponse() {
+    let lastIndex = -1;
+    if (!this.newInput.trim()) {
+        return
+    }
+
+    this.messages.push({
+      type: "user",
+      content: this.newInput.trim(),
+      status: ''
+    });
+    let prompt = this.newInput.trim();
+    this.streamSub = this.apiService.streamResponse(prompt).subscribe({
+      next: (msg: LlmResponse) => {
+        console.log(msg.status);
+        switch (msg.type) {
+          case 'query':
+            lastIndex = this.messages.length - 1;
+            if (this.messages[lastIndex].type == "user") {
+              this.messages.push({
+                type: "ai",
+                content: '',
+                status: "Searching for: " + msg.content + ".<br>" + msg.status
+              });
+            } else {
+              this.messages[lastIndex] = {
+                type: "ai",
+                content: '',
+                status: "Searching for: " + msg.content + ".<br>" + msg.status
+              };
+            }
+            break;
+
+          case 'files':
+            lastIndex = this.messages.length - 1;
+            if (this.messages[lastIndex].type == "user") {
+              this.messages.push({
+                type: "ai",
+                content: '',
+                status: "Using files: " + JSON.stringify(msg.content) + ".<br>" + msg.status
+              });
+            } else {
+              this.messages[lastIndex] = {
+                type: "ai",
+                content: '',
+                status: "Using files: " + JSON.stringify(msg.content) + ".<br>" + msg.status
+              };
+            }
+            break;
+
+          case 'answer':
+            lastIndex = this.messages.length - 1;
+            if (this.messages[lastIndex].type == "user") {
+              this.messages.push({
+                type: "ai",
+                content: msg.content,
+                status: msg.status
+              });
+            } else {
+              this.messages[lastIndex] = {
+                type: "ai",
+                content: msg.content,
+                status: msg.status
+              };
+            }
+            break;
+
+          case 'answer_with_images':
+            lastIndex = this.messages.length - 1;
+            if (this.messages[lastIndex].type == "user") {
+              this.messages.push({
+                type: "ai",
+                content: msg.content,
+                status: msg.status
+              });
+            } else {
+            this.messages[lastIndex] = {
+                type: "ai",
+                content: msg.content,
+                status: msg.status
+              };
+            }
+
+            this.streamSub?.unsubscribe();
+            break;
+
+          default:
+            break;
+        }
+      }
+    });
+    this.newInput = '';
+  }
+
   async sendMessage() {
     if (this.newInput.trim()) {
       this.messages.push({
         type: "user",
-        content: this.newInput.trim()
+        content: this.newInput.trim(),
+        status: ''
       });
       let msg = this.newInput.trim();
       this.newInput = "";
@@ -55,6 +154,7 @@ export class ChatComponent implements AfterViewChecked {
           this.messages.push({
             type: "ai",
             content: message.content,
+            status: ''
           });
           console.log(message.status);
         }
@@ -66,7 +166,7 @@ export class ChatComponent implements AfterViewChecked {
   handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      this.sendMessage();
+      this.streamResponse();
     }
   }
 
