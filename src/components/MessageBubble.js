@@ -15,67 +15,6 @@ function MessageBubble({ message }) {
     const hasContent = !isUser && message.content;
     const isEmpty = !isUser && !message.content && !message.statusText;
 
-    function renderContent(content) {
-        if (!content) return null;
-
-        let cleaned = content.replace(/\\n/g, '\n');
-
-        const base64Regex = /!\[\]\((data:image\/[a-zA-Z]+;base64,[^\s)]+)\)/g;
-
-        const parts = [];
-        let lastIndex = 0;
-        let match;
-
-        while ((match = base64Regex.exec(cleaned)) !== null) {
-            const index = match.index;
-
-            // Add text before image
-            if (index > lastIndex) {
-                parts.push(
-                    <ReactMarkdown
-                        key={`text-${index}`}
-                        remarkPlugins={[remarkGfm]}
-                        components={{ code: CodeBlock }}
-                    >
-                        {cleaned.slice(lastIndex, index)}
-                    </ReactMarkdown>
-                );
-            }
-
-            // Add image
-            parts.push(
-                <img
-                    key={`img-${index}`}
-                    src={match[1]}
-                    alt="generated"
-                    style={{
-                        display: 'block',
-                        width: '400px',
-                        borderRadius: '8px',
-                        margin: '10px'
-                    }}
-                />
-            );
-
-            lastIndex = base64Regex.lastIndex;
-        }
-
-        // Add remaining text
-        if (lastIndex < cleaned.length) {
-            parts.push(
-                <ReactMarkdown
-                    key="last-text"
-                    remarkPlugins={[remarkGfm]}
-                    components={{ code: CodeBlock }}
-                >
-                    {cleaned.slice(lastIndex)}
-                </ReactMarkdown>
-            );
-        }
-
-        return parts;
-    }
-
     return (
         <div className={`message-row ${message.role}`}>
             {!isUser && (
@@ -107,7 +46,25 @@ function MessageBubble({ message }) {
                             )}
                             {hasContent && (
                                 <div className="markdown-content">
-                                    {renderContent(message.content)}
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            code: CodeBlock,
+                                            img: ({ src, alt }) => {
+                                                if (!src) return null;
+                                                return (
+                                                    <img
+                                                        src={src}
+                                                        alt={alt || ''}
+                                                        style={{ maxWidth: '400px', height: 'auto', borderRadius: '6px', margin: '8px 0', display: 'block'}}
+                                                    />
+                                                );
+                                            },
+                                        }}
+                                        urlTransform={(url) => url}
+                                    >
+                                        {message.content}
+                                    </ReactMarkdown>
                                 </div>
                             )}
                         </>
