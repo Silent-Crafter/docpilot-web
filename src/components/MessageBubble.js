@@ -50,7 +50,18 @@ function MessageBubble({ message }) {
                                         remarkPlugins={[remarkGfm]}
                                         components={{
                                             code: CodeBlock,
+                                            img: ({ src, alt }) => {
+                                                if (!src) return null;
+                                                return (
+                                                    <img
+                                                        src={src}
+                                                        alt={alt || ''}
+                                                        style={{ maxWidth: '400px', height: 'auto', borderRadius: '6px', margin: '8px 0', display: 'block'}}
+                                                    />
+                                                );
+                                            },
                                         }}
+                                        urlTransform={(url) => url}
                                     >
                                         {message.content}
                                     </ReactMarkdown>
