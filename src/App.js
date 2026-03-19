@@ -14,17 +14,26 @@ function App() {
   return (
     <ChatProvider>
       <div className="app-container">
+
         <Sidebar
           isOpen={sidebarOpen}
           onToggle={toggleSidebar}
           activeView={activeView}
           onSetActiveView={setActiveView}
         />
+
         {activeView === 'chat' ? (
-          <ChatArea sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+          <ChatArea
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={toggleSidebar}
+          />
         ) : (
-          <KnowledgeHub sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+          <KnowledgeHub
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={toggleSidebar}
+          />
         )}
+
       </div>
     </ChatProvider>
   );

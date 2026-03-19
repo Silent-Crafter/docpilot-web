@@ -18,7 +18,7 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
     };
 
     const handleSelect = (id) => {
-        dispatch({ type: 'SET_ACTIVE', id });
+        dispatch({ type: 'SET_ACTIVE', id }); // ✅ fixed bug (removed 'x')
         onSetActiveView('chat');
         if (window.innerWidth < 768) {
             onToggle();
@@ -41,12 +41,23 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
 
     return (
         <>
-            <div className={`sidebar-overlay ${isOpen ? 'visible' : ''}`} onClick={onToggle} />
-            <aside className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
+            {/* Overlay */}
+            <div
+                className={`sidebar-overlay ${isOpen ? 'visible' : ''}`}
+                onClick={onToggle}
+            />
+
+            {/* Sidebar */}
+            <aside className={`sidebar ${isOpen ? 'expanded' : 'collapsed'}`}>
                 <div className="sidebar-header">
-                    <button className="sidebar-toggle-btn" onClick={onToggle} title="Close sidebar">
+                    <button
+                        className="sidebar-toggle-btn"
+                        onClick={onToggle}
+                        title="Close sidebar"
+                    >
                         <HiOutlineBars3 size={20} />
                     </button>
+
                     <button className="new-chat-btn" onClick={handleNewChat}>
                         <HiOutlinePlus className="icon" />
                         New chat
@@ -56,21 +67,39 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
                 <nav className="sidebar-conversations">
                     {grouped.map((group) => (
                         <div key={group.label}>
-                            <div className="conversation-group-label">{group.label}</div>
+                            <div className="conversation-group-label">
+                                {group.label}
+                            </div>
+
                             {group.items.map((conv) => (
                                 <div
                                     key={conv.id}
-                                    className={`conversation-item ${conv.id === activeConversationId && activeView === 'chat' ? 'active' : ''}`}
+                                    className={`conversation-item ${
+                                        conv.id === activeConversationId &&
+                                        activeView === 'chat'
+                                            ? 'active'
+                                            : ''
+                                    }`}
                                     onClick={() => handleSelect(conv.id)}
                                 >
                                     <HiOutlineChatBubbleLeftRight
                                         size={16}
-                                        style={{ marginRight: 10, flexShrink: 0, opacity: 0.5 }}
+                                        style={{
+                                            marginRight: 10,
+                                            flexShrink: 0,
+                                            opacity: 0.5,
+                                        }}
                                     />
-                                    <span className="conv-title">{conv.title}</span>
+
+                                    <span className="conv-title">
+                                        {conv.title}
+                                    </span>
+
                                     <button
                                         className="delete-btn"
-                                        onClick={(e) => handleDelete(e, conv.id)}
+                                        onClick={(e) =>
+                                            handleDelete(e, conv.id)
+                                        }
                                         title="Delete conversation"
                                     >
                                         <HiOutlineTrash />
@@ -81,7 +110,14 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
                     ))}
 
                     {conversations.length === 0 && (
-                        <div style={{ padding: '20px 12px', color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center' }}>
+                        <div
+                            style={{
+                                padding: '20px 12px',
+                                color: 'var(--text-tertiary)',
+                                fontSize: 13,
+                                textAlign: 'center',
+                            }}
+                        >
                             No conversations yet.
                             <br />
                             Start a new chat!
@@ -91,11 +127,13 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
 
                 <div className="sidebar-footer">
                     <button
-                        className={`sidebar-footer-btn ${activeView === 'knowledge' ? 'active' : ''}`}
+                        className={`sidebar-footer-btn ${
+                            activeView === 'knowledge' ? 'active' : ''
+                        }`}
                         onClick={handleKnowledgeHub}
                     >
                         <HiOutlineFolder className="icon" />
-                        Knowledge Hub
+                        <span className="footer-text">Knowledge Hub</span>
                     </button>
                 </div>
             </aside>

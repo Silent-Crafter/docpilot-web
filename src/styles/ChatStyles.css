@@ -12,8 +12,13 @@
 /* =============================================
    SIDEBAR
    ============================================= */
-.sidebar {
+
+/* .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: var(--sidebar-width);
+    width: 250px;
     min-width: var(--sidebar-width);
     height: 100vh;
     background: var(--bg-secondary);
@@ -21,7 +26,55 @@
     flex-direction: column;
     border-right: 1px solid var(--border-subtle);
     transition: transform var(--transition-normal), opacity var(--transition-normal);
-    z-index: 100;
+    z-index: 1000;
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+
+} */
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 260px;
+
+    /* KEEP YOUR ORIGINAL COLOR HERE */
+    background-color: var(bg-secondary);
+
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+
+    z-index: 1000;
+}
+
+
+.sidebar.collapsed {
+  transform: translateX(-100%);
+}
+
+.sidebar:not(.collapsed) {
+  transform: translateX(0);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+
+  opacity: 0;
+  pointer-events: none;
+
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.sidebar-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar.collapsed {
@@ -64,6 +117,7 @@
 }
 
 .sidebar-toggle-btn {
+    
     display: flex;
     align-items: center;
     justify-content: center;
@@ -150,6 +204,10 @@
 }
 
 .sidebar-footer {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    width: 100%;
     padding: 12px;
     border-top: 1px solid var(--border-subtle);
 }
@@ -183,18 +241,96 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    width: 100%;
     background: var(--surface-chat);
     position: relative;
     overflow: hidden;
+    transition: all 0.3s ease;
+    
 }
 
-.chat-header {
+.chat-area.with-sidebar {
+    margin-left: 260px; /* same as sidebar width */
+}
+
+.chat-area.full {
+    margin-left: 0;
+}
+
+/* .chat-header {
+    position: fixed;
+    top: 7px;
     display: flex;
     align-items: center;
     height: var(--header-height);
     padding: 0 16px;
     gap: 12px;
-    flex-shrink: 0;
+    flex-shrink: 0; 
+    justify-content: space-between;
+} */
+
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* key fix */
+    padding: 10px 16px;
+}
+
+
+/* LEFT SECTION */
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* ✅ spacing between button & title */
+}
+
+/* TITLE */
+/* .kh-header-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 16px;
+    font-weight: 500;
+} */
+
+.model-label,
+.kh-header-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* BUTTON FIX (important if overlapping) */
+/* .sidebar-open-btn {
+    position: relative; /* ❗ remove absolute if present */
+/* } */ */
+
+.sidebar-open-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+}
+
+.home-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+
+    padding: 10px;          /* ✅ increases clickable area */
+    border-radius: 8px;
+
+    display: flex;          /* ensures proper centering */
+    align-items: center;
+    justify-content: center;
+
+    min-width: 36px;        /* optional: fixed click size */
+    min-height: 36px;
+}
+
+.home-btn:hover {
+    background: rgba(255,255,255,0.1);
 }
 
 .chat-header .sidebar-open-btn {
@@ -1116,14 +1252,130 @@
 
 /* Sidebar overlay for mobile */
 .sidebar-overlay {
-    display: none;
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 99;
-    animation: fadeIn 0.2s ease;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    background: rgba(0, 0, 0, 0.3);
+
+    opacity: 0;
+    pointer-events: none;   /* ❗ important */
+    transition: 0.3s;
+    z-index: 10;
 }
 
 .sidebar-overlay.visible {
-    display: block;
+    opacity: 1;
+    pointer-events: none;   /* ❗ only active when visible */
+}
+
+
+/* .home-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: 0.2s;
+} */
+
+/* .home-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+} */
+
+
+
+/* MAIN WRAPPER */
+.kh-wrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* TOP BAR */
+.kh-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.kh-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kh-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* BUTTONS */
+.kh-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+}
+
+.kh-btn.primary {
+    background: #10a37f;
+    color: white;
+}
+
+.kh-btn.secondary {
+    background: #2a2a2a;
+    color: #ddd;
+}
+
+/* CARDS */
+.kh-card {
+    background: #1e1e1e;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 15px;
+}
+
+/* DROP ZONE */
+.kh-card.drop {
+    border: 2px dashed #444;
+    text-align: center;
+    cursor: pointer;
+}
+
+.kh-card.drop.active {
+    border-color: #10a37f;
+}
+
+/* CENTER CONTENT */
+.kh-center {
+    text-align: center;
+    padding: 40px 0;
+}
+
+/* ERROR (SOFT) */
+.kh-error-soft {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff6b6b;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+/* TABLE */
+.documents-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.documents-table td,
+.documents-table th {
+    padding: 10px;
+    border-bottom: 1px solid #333;
 }
