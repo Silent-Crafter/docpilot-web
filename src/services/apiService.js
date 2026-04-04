@@ -141,3 +141,44 @@ export async function deleteDocument(id) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
+
+// ========================
+// Chat History
+// ========================
+
+/**
+ * Fetch message history for a chat from the API.
+ *
+ * POST /history  { chatid: "<uuid>" }
+ * Returns: [{ role: 'user'|'assistant', content: '...' }, ...]
+ *
+ * @param {string} chatId
+ * @returns {Promise<Array<{role: string, content: string}>>}
+ */
+export async function fetchChatHistory(chatId) {
+    const res = await fetch(`${API_URL}/history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatid: chatId }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Create a new chat session.
+ *
+ * TODO: Replace with an API call once the backend supports returning UUIDs.
+ * For now, generates a UUID client-side as a placeholder.
+ *
+ * @returns {Promise<string>} The new chat's UUID
+ */
+export async function createNewChat() {
+    // Placeholder: generate UUID client-side
+    // When API is ready, replace with:
+    //   const res = await fetch(`${API_URL}/chat/new`, { method: 'POST' });
+    //   const data = await res.json();
+    //   return data.chatId;
+    const { v4: uuidv4 } = await import('uuid');
+    return uuidv4();
+}

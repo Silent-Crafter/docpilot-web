@@ -8,29 +8,34 @@ import {
     HiOutlineFolder,
 } from 'react-icons/hi2';
 
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 
 function Sidebar({ isOpen, onToggle }) {
-    const { state, dispatch } = useChat();
+    const { state, dispatch, startNewChat } = useChat();
     const { conversations, activeConversationId } = state;
 
     const navigate = useNavigate();
     const location = useLocation();
 
-    const handleNewChat = () => {
-        dispatch({ type: 'NEW_CHAT' });
-        navigate('/');
+    const handleNewChat = async () => {
+        const chatId = await startNewChat();
+        navigate(`/chat/${chatId}`);
     };
 
     const handleSelect = (id) => {
         dispatch({ type: 'SET_ACTIVE', id });
-        navigate('/');
+        navigate(`/chat/${id}`);
         if (window.innerWidth < 768) onToggle();
     };
 
     const handleDelete = (e, id) => {
         e.stopPropagation();
         dispatch({ type: 'DELETE_CHAT', id });
+
+        // If we're currently viewing the deleted chat, go home
+        if (activeConversationId === id) {
+            navigate('/');
+        }
     };
 
     const handleKnowledgeHub = () => {
@@ -39,6 +44,9 @@ function Sidebar({ isOpen, onToggle }) {
     };
 
     const grouped = groupByDate(conversations);
+
+    // Check if current URL is a chat URL to determine active state
+    const isChatRoute = location.pathname.startsWith('/chat/');
 
     return (
         <>
@@ -51,7 +59,7 @@ function Sidebar({ isOpen, onToggle }) {
             {/* Sidebar */}
             <aside className={`sidebar ${isOpen ? 'expanded' : 'collapsed'}`}>
                 
-                {/* HEADER (RESTORED ORIGINAL) */}
+                {/* HEADER */}
                 <div className="sidebar-header">
                     <button
                         className="sidebar-toggle-btn"
@@ -80,7 +88,7 @@ function Sidebar({ isOpen, onToggle }) {
                                     key={conv.id}
                                     className={`conversation-item ${
                                         conv.id === activeConversationId &&
-                                        location.pathname === '/'
+                                        isChatRoute
                                             ? 'active'
                                             : ''
                                     }`}

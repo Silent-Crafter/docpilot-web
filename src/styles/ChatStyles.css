@@ -321,7 +321,7 @@
     border: none;
     cursor: pointer;
 
-    padding: 10px;          /* ✅ increases clickable area */
+    padding: 10px;          
     border-radius: 8px;
 
     display: flex;          /* ensures proper centering */

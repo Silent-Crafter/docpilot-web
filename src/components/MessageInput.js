@@ -1,9 +1,12 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useChat } from '../context/ChatContext';
 import { HiArrowUp, HiOutlinePaperClip, HiOutlineXMark } from 'react-icons/hi2';
+import { useNavigate, useParams } from 'react-router-dom';
 
 function MessageInput() {
     const { sendMessage, state } = useChat();
+    const navigate = useNavigate();
+    const { chatId } = useParams();
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
     const { isGenerating } = state;
@@ -22,11 +25,16 @@ function MessageInput() {
         if (!el) return;
         const text = el.value.trim();
         if (!text || isGenerating) return;
-        sendMessage(text, attachedFile);
+        const convId = sendMessage(text, attachedFile);
         el.value = '';
         el.style.height = 'auto';
         setAttachedFile(null);
-    }, [sendMessage, isGenerating, attachedFile]);
+
+        // If we were on the home screen (no chatId), navigate to the new chat URL
+        if (!chatId && convId) {
+            navigate(`/chat/${convId}`);
+        }
+    }, [sendMessage, isGenerating, attachedFile, chatId, navigate]);
 
     const handleKeyDown = useCallback((e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
