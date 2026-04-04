@@ -5,16 +5,23 @@ import {
     HiOutlineTrash,
     HiOutlineArrowPath,
     HiOutlineFolder,
+    HiOutlineBars3,
+    HiOutlineHome,
 } from 'react-icons/hi2';
 import { getDocuments, uploadDocument, deleteDocument } from '../services/apiService';
+import { useNavigate } from 'react-router-dom';
+import { useChat } from '../context/ChatContext';
 
-function KnowledgeHub() {
+function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
     const [documents, setDocuments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef(null);
+
+    const navigate = useNavigate(); // ✅ added
+    const { dispatch } = useChat(); // ✅ added
 
     const fetchDocuments = useCallback(async () => {
         setLoading(true);
@@ -78,6 +85,12 @@ function KnowledgeHub() {
         setDragOver(false);
     };
 
+    // ✅ FIXED HOME FUNCTION
+    const handleHome = () => {
+        dispatch({ type: 'SET_ACTIVE', id: null }); // show welcome screen
+        navigate('/'); // go to chat page
+    };
+
     const formatSize = (bytes) => {
         if (!bytes) return '—';
         if (bytes < 1024) return bytes + ' B';
@@ -97,107 +110,128 @@ function KnowledgeHub() {
     };
 
     return (
-        <div className="knowledge-hub">
-            <div className="knowledge-header">
-                <div className="knowledge-title">
-                    <HiOutlineFolder size={24} />
-                    <h1>Knowledge Hub</h1>
-                </div>
-                <div className="knowledge-actions">
-                    <button className="kh-btn kh-btn-secondary" onClick={fetchDocuments} title="Refresh">
-                        <HiOutlineArrowPath size={16} />
-                        Refresh
-                    </button>
+        <main className={`chat-area ${sidebarOpen ? 'with-sidebar' : 'full'}`}>
+
+            {/* HEADER */}
+            <div className="chat-header">
+                <div className="header-left">
+
+                    {!sidebarOpen && (
+                        <button
+                            className="sidebar-open-btn"
+                            onClick={onToggleSidebar}
+                        >
+                            <HiOutlineBars3 size={20} />
+                        </button>
+                    )}
+
+                    {/* ✅ FIXED (NO UI CHANGE) */}
                     <button
-                        className="kh-btn kh-btn-primary"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
+                        className="sidebar-open-btn home-btn"
+                        onClick={handleHome}
+                        title="Go to Home"
                     >
-                        <HiOutlineCloudArrowUp size={16} />
-                        {uploading ? 'Uploading...' : 'Upload Document'}
+                        <HiOutlineHome size={20} />
                     </button>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        onChange={handleFileSelect}
-                        style={{ display: 'none' }}
-                        accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.xml,.html,.py,.js,.ts,.java,.c,.cpp,.h,.hpp"
-                    />
+
+                    <div className="kh-header-title">
+                        <HiOutlineFolder size={20} />
+                        <span>Knowledge Hub</span>
+                    </div>
+
                 </div>
             </div>
 
-            {/* Drop zone */}
-            <div
-                className={`drop-zone ${dragOver ? 'active' : ''}`}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-            >
-                <HiOutlineCloudArrowUp size={36} />
-                <p>Drag & drop a document here to upload</p>
-                <span>or click "Upload Document" above</span>
-            </div>
+            {/* CONTENT */}
+            <div className="knowledge-hub">
 
-            {/* Error banner */}
-            {error && (
-                <div className="kh-error">
-                    {error}
-                    <button onClick={() => setError(null)}>✕</button>
+                <div className="knowledge-header">
+
+                    <div className="knowledge-actions">
+                        <button className="kh-btn kh-btn-secondary" onClick={fetchDocuments}>
+                            <HiOutlineArrowPath size={16} />
+                            Refresh
+                        </button>
+
+                        <button
+                            className="kh-btn kh-btn-primary"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                        >
+                            <HiOutlineCloudArrowUp size={16} />
+                            {uploading ? 'Uploading...' : 'Upload Document'}
+                        </button>
+
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            onChange={handleFileSelect}
+                            style={{ display: 'none' }}
+                        />
+                    </div>
                 </div>
-            )}
 
-            {/* Document list */}
-            <div className="documents-container">
-                {loading ? (
-                    <div className="kh-empty-state">
-                        <div className="typing-indicator">
-                            <div className="dot" />
-                            <div className="dot" />
-                            <div className="dot" />
-                        </div>
-                        <p>Loading documents...</p>
+                <div
+                    className={`drop-zone ${dragOver ? 'active' : ''}`}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                >
+                    <HiOutlineCloudArrowUp size={36} />
+                    <p>Drag & drop a document here to upload</p>
+                    <span>or click "Upload Document" above</span>
+                </div>
+
+                {error && (
+                    <div className="kh-error">
+                        {error}
+                        <button onClick={() => setError(null)}>✕</button>
                     </div>
-                ) : documents.length === 0 ? (
-                    <div className="kh-empty-state">
-                        <HiOutlineDocumentText size={48} />
-                        <h3>No documents yet</h3>
-                        <p>Upload documents to build your knowledge base. Docpilot will use them to answer your questions.</p>
-                    </div>
-                ) : (
-                    <table className="documents-table">
-                        <thead>
-                            <tr>
-                                <th>Document</th>
-                                <th>Size</th>
-                                <th>Uploaded</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {documents.map((doc) => (
-                                <tr key={doc.id}>
-                                    <td className="doc-name-cell">
-                                        <HiOutlineDocumentText size={18} />
-                                        <span>{doc.filename}</span>
-                                    </td>
-                                    <td className="doc-meta">{formatSize(doc.size)}</td>
-                                    <td className="doc-meta">{formatDate(doc.uploadedAt)}</td>
-                                    <td>
-                                        <button
-                                            className="doc-delete-btn"
-                                            onClick={() => handleDelete(doc.id)}
-                                            title="Delete document"
-                                        >
-                                            <HiOutlineTrash size={16} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
                 )}
+
+                <div className="documents-container">
+                    {loading ? (
+                        <div className="kh-empty-state">
+                            <div className="typing-indicator">
+                                <div className="dot" />
+                                <div className="dot" />
+                                <div className="dot" />
+                            </div>
+                            <p>Loading documents...</p>
+                        </div>
+                    ) : documents.length === 0 ? (
+                        <div className="kh-empty-state">
+                            <HiOutlineDocumentText size={48} />
+                            <h3>No documents yet</h3>
+                        </div>
+                    ) : (
+                        <table className="documents-table">
+                            <tbody>
+                                {documents.map((doc) => (
+                                    <tr key={doc.id}>
+                                        <td className="doc-name-cell">
+                                            <HiOutlineDocumentText size={18} />
+                                            <span>{doc.filename}</span>
+                                        </td>
+                                        <td>{formatSize(doc.size)}</td>
+                                        <td>{formatDate(doc.uploadedAt)}</td>
+                                        <td>
+                                            <button
+                                                className="doc-delete-btn"
+                                                onClick={() => handleDelete(doc.id)}
+                                            >
+                                                <HiOutlineTrash size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
             </div>
-        </div>
+        </main>
     );
 }
 

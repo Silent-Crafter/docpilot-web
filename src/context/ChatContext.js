@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useReducer, useCallback, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useCallback,
+  useRef,
+  useEffect,
+} from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { streamResponse } from '../services/apiService';
 
@@ -13,11 +20,45 @@ function createNewConversation() {
   };
 }
 
-const initialState = {
-  conversations: [],
-  activeConversationId: null,
-  isGenerating: false,
-};
+// ✅ LOAD FROM LOCALSTORAGE
+const initialState = (() => {
+  try {
+    const saved = localStorage.getItem('chatState');
+
+    if (!saved) {
+      return {
+        conversations: [],
+        activeConversationId: null,
+        isGenerating: false,
+      };
+    }
+
+    const parsed = JSON.parse(saved);
+
+    // ✅ VALIDATION (VERY IMPORTANT)
+    if (
+      typeof parsed !== 'object' ||
+      !Array.isArray(parsed.conversations)
+    ) {
+      throw new Error("Invalid state");
+    }
+
+    return {
+      conversations: parsed.conversations || [],
+      activeConversationId: null,
+      isGenerating: false, // always reset this
+    };
+
+  } catch (e) {
+    console.warn("Resetting corrupted chat state");
+
+    return {
+      conversations: [],
+      activeConversationId: null,
+      isGenerating: false,
+    };
+  }
+})();
 
 function chatReducer(state, action) {
   switch (action.type) {
@@ -54,10 +95,13 @@ function chatReducer(state, action) {
         conversations: state.conversations.map(c =>
           c.id === conversationId
             ? {
-              ...c,
-              messages: [...c.messages, message],
-              title: c.messages.length === 0 ? message.content.slice(0, 40) : c.title,
-            }
+                ...c,
+                messages: [...c.messages, message],
+                title:
+                  c.messages.length === 0
+                    ? message.content.slice(0, 40)
+                    : c.title,
+              }
             : c
         ),
       };
@@ -82,11 +126,11 @@ function chatReducer(state, action) {
         conversations: state.conversations.map(c =>
           c.id === conversationId
             ? {
-              ...c,
-              messages: c.messages.map(m =>
-                m.id === messageId ? { ...m, ...updates } : m
-              ),
-            }
+                ...c,
+                messages: c.messages.map(m =>
+                  m.id === messageId ? { ...m, ...updates } : m
+                ),
+              }
             : c
         ),
       };
@@ -142,6 +186,19 @@ function handleStreamEvent(event, dispatch, convId, assistantMsgId) {
       });
       break;
 
+    case 'streaming_answer':
+      dispatch({
+        type: 'UPDATE_ASSISTANT_MESSAGE',
+        conversationId: convId,
+        messageId: assistantMsgId,
+        updates: {
+          content: event.content,
+          statusText: event.status || '',
+          statusDetail: '',
+        },
+      });
+      break;
+
     case 'answer_with_images':
       dispatch({
         type: 'UPDATE_ASSISTANT_MESSAGE',
@@ -165,10 +222,14 @@ export function ChatProvider({ children }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const cleanupRef = useRef(null);
 
+  // ✅ SAVE TO LOCALSTORAGE
+  useEffect(() => {
+    localStorage.setItem('chatState', JSON.stringify(state));
+  }, [state]);
+
   const sendMessage = useCallback((content, file = null) => {
     let convId = state.activeConversationId;
 
-    // Build user message with optional attachment info
     const userMessage = {
       id: uuidv4(),
       role: 'user',
@@ -177,7 +238,6 @@ export function ChatProvider({ children }) {
       ...(file ? { attachment: { name: file.name, size: file.size } } : {}),
     };
 
-    // If no active conversation, create one first
     if (!convId) {
       const newConv = createNewConversation();
       convId = newConv.id;
@@ -190,7 +250,6 @@ export function ChatProvider({ children }) {
       message: userMessage,
     });
 
-    // Create an assistant message placeholder
     const assistantMsgId = uuidv4();
     dispatch({
       type: 'ADD_ASSISTANT_MESSAGE',
@@ -204,7 +263,6 @@ export function ChatProvider({ children }) {
       },
     });
 
-    // Stream using the unified endpoint (GET for text, POST for file)
     const cleanup = streamResponse(
       content,
       file,
@@ -216,7 +274,8 @@ export function ChatProvider({ children }) {
           conversationId: convId,
           messageId: assistantMsgId,
           updates: {
-            content: 'Sorry, something went wrong. Please check if the API server is running at `localhost:31337`.',
+            content:
+              'Sorry, something went wrong. Please check if the API server is running at `localhost:31337`.',
             statusText: '',
           },
         });
