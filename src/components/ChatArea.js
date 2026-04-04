@@ -3,11 +3,13 @@ import { useChat } from '../context/ChatContext';
 import MessageBubble from './MessageBubble';
 import WelcomeScreen from './WelcomeScreen';
 import MessageInput from './MessageInput';
-import { HiOutlineBars3, HiOutlineHome } from 'react-icons/hi2'; // ✅ added Home icon
+import { HiOutlineBars3, HiOutlineHome } from 'react-icons/hi2';
+import { useNavigate } from 'react-router-dom';
 
 function ChatArea({ sidebarOpen, onToggleSidebar }) {
-    const { state } = useChat();
+    const { state, dispatch } = useChat();
     const messagesEndRef = useRef(null);
+    const navigate = useNavigate();
 
     const activeConversation = state.conversations.find(
         (c) => c.id === state.activeConversationId
@@ -21,13 +23,17 @@ function ChatArea({ sidebarOpen, onToggleSidebar }) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages.length]);
 
+    const handleHome = () => {
+        dispatch({ type: 'SET_ACTIVE', id: null });
+        navigate('/');
+    };
+
     return (
         <main className={`chat-area ${sidebarOpen ? 'with-sidebar' : 'full'}`}>
 
-            {/* ✅ HEADER FIXED */}
+            {/* HEADER */}
             <div className="chat-header">
 
-                {/* LEFT SIDE */}
                 <div className="header-left">
                     {!sidebarOpen && (
                         <button
@@ -40,24 +46,25 @@ function ChatArea({ sidebarOpen, onToggleSidebar }) {
 
                     <button
                         className="sidebar-open-btn home-btn"
-                        onClick={() => window.location.reload()}
+                        onClick={handleHome}
                         title="Go to Home"
                     >
                         <HiOutlineHome size={20} />
                     </button>
                 </div>
 
-                {/* CENTER */}
                 <div className="model-label">
                     <span className="dot" />
                     Docpilot
                 </div>
-
             </div>
 
-
-            {messages.length === 0 ? (
-                <WelcomeScreen />
+            {/* BODY */}
+            {!activeConversation ? (
+                // ✅ FIX: force render without layout change
+                <>
+                    <WelcomeScreen />
+                </>
             ) : (
                 <div className="messages-container">
                     <div className="messages-list">

@@ -8,21 +8,24 @@ import {
     HiOutlineFolder,
 } from 'react-icons/hi2';
 
-function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
+import { useNavigate, useLocation } from 'react-router-dom';
+
+function Sidebar({ isOpen, onToggle }) {
     const { state, dispatch } = useChat();
     const { conversations, activeConversationId } = state;
 
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const handleNewChat = () => {
         dispatch({ type: 'NEW_CHAT' });
-        onSetActiveView('chat');
+        navigate('/');
     };
 
     const handleSelect = (id) => {
-        dispatch({ type: 'SET_ACTIVE', id }); // ✅ fixed bug (removed 'x')
-        onSetActiveView('chat');
-        if (window.innerWidth < 768) {
-            onToggle();
-        }
+        dispatch({ type: 'SET_ACTIVE', id });
+        navigate('/');
+        if (window.innerWidth < 768) onToggle();
     };
 
     const handleDelete = (e, id) => {
@@ -31,10 +34,8 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
     };
 
     const handleKnowledgeHub = () => {
-        onSetActiveView('knowledge');
-        if (window.innerWidth < 768) {
-            onToggle();
-        }
+        navigate('/knowledgehub');
+        if (window.innerWidth < 768) onToggle();
     };
 
     const grouped = groupByDate(conversations);
@@ -49,6 +50,8 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
 
             {/* Sidebar */}
             <aside className={`sidebar ${isOpen ? 'expanded' : 'collapsed'}`}>
+                
+                {/* HEADER (RESTORED ORIGINAL) */}
                 <div className="sidebar-header">
                     <button
                         className="sidebar-toggle-btn"
@@ -64,6 +67,7 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
                     </button>
                 </div>
 
+                {/* CHAT LIST */}
                 <nav className="sidebar-conversations">
                     {grouped.map((group) => (
                         <div key={group.label}>
@@ -76,7 +80,7 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
                                     key={conv.id}
                                     className={`conversation-item ${
                                         conv.id === activeConversationId &&
-                                        activeView === 'chat'
+                                        location.pathname === '/'
                                             ? 'active'
                                             : ''
                                     }`}
@@ -125,10 +129,13 @@ function Sidebar({ isOpen, onToggle, activeView, onSetActiveView }) {
                     )}
                 </nav>
 
+                {/* FOOTER */}
                 <div className="sidebar-footer">
                     <button
                         className={`sidebar-footer-btn ${
-                            activeView === 'knowledge' ? 'active' : ''
+                            location.pathname === '/knowledgehub'
+                                ? 'active'
+                                : ''
                         }`}
                         onClick={handleKnowledgeHub}
                     >
@@ -151,13 +158,10 @@ function groupByDate(conversations) {
 
     conversations.forEach((conv) => {
         const created = new Date(conv.createdAt);
-        if (created >= today) {
-            groups['Today'].push(conv);
-        } else if (created >= weekAgo) {
+        if (created >= today) groups['Today'].push(conv);
+        else if (created >= weekAgo)
             groups['Previous 7 days'].push(conv);
-        } else {
-            groups['Older'].push(conv);
-        }
+        else groups['Older'].push(conv);
     });
 
     return Object.entries(groups)

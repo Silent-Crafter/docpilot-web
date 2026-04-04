@@ -6,9 +6,11 @@ import {
     HiOutlineArrowPath,
     HiOutlineFolder,
     HiOutlineBars3,
-    HiOutlineHome, // ✅ added
+    HiOutlineHome,
 } from 'react-icons/hi2';
 import { getDocuments, uploadDocument, deleteDocument } from '../services/apiService';
+import { useNavigate } from 'react-router-dom';
+import { useChat } from '../context/ChatContext';
 
 function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
     const [documents, setDocuments] = useState([]);
@@ -17,6 +19,9 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
     const [uploading, setUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef(null);
+
+    const navigate = useNavigate(); // ✅ added
+    const { dispatch } = useChat(); // ✅ added
 
     const fetchDocuments = useCallback(async () => {
         setLoading(true);
@@ -80,6 +85,12 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
         setDragOver(false);
     };
 
+    // ✅ FIXED HOME FUNCTION
+    const handleHome = () => {
+        dispatch({ type: 'SET_ACTIVE', id: null }); // show welcome screen
+        navigate('/'); // go to chat page
+    };
+
     const formatSize = (bytes) => {
         if (!bytes) return '—';
         if (bytes < 1024) return bytes + ' B';
@@ -101,11 +112,10 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
     return (
         <main className={`chat-area ${sidebarOpen ? 'with-sidebar' : 'full'}`}>
 
-            {/* ✅ HEADER FIXED */}
+            {/* HEADER */}
             <div className="chat-header">
                 <div className="header-left">
 
-                    {/* ✅ Only this is conditional */}
                     {!sidebarOpen && (
                         <button
                             className="sidebar-open-btn"
@@ -115,25 +125,21 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                         </button>
                     )}
 
-                    {/* ✅ ALWAYS visible */}
+                    {/* ✅ FIXED (NO UI CHANGE) */}
                     <button
                         className="sidebar-open-btn home-btn"
-                        onClick={() => window.location.reload()}
+                        onClick={handleHome}
                         title="Go to Home"
                     >
                         <HiOutlineHome size={20} />
                     </button>
 
-                    {/* Title */}
                     <div className="kh-header-title">
                         <HiOutlineFolder size={20} />
                         <span>Knowledge Hub</span>
                     </div>
 
                 </div>
-                                
-
-
             </div>
 
             {/* CONTENT */}
@@ -165,7 +171,6 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                     </div>
                 </div>
 
-                {/* Drop zone */}
                 <div
                     className={`drop-zone ${dragOver ? 'active' : ''}`}
                     onDrop={handleDrop}
@@ -177,7 +182,6 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                     <span>or click "Upload Document" above</span>
                 </div>
 
-                {/* Error */}
                 {error && (
                     <div className="kh-error">
                         {error}
@@ -185,7 +189,6 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                     </div>
                 )}
 
-                {/* Documents */}
                 <div className="documents-container">
                     {loading ? (
                         <div className="kh-empty-state">
@@ -203,14 +206,6 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                         </div>
                     ) : (
                         <table className="documents-table">
-                            <thead>
-                                <tr>
-                                    <th>Document</th>
-                                    <th>Size</th>
-                                    <th>Uploaded</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
                             <tbody>
                                 {documents.map((doc) => (
                                     <tr key={doc.id}>
