@@ -186,6 +186,19 @@ function handleStreamEvent(event, dispatch, convId, assistantMsgId) {
       });
       break;
 
+    case 'streaming_answer':
+      dispatch({
+        type: 'UPDATE_ASSISTANT_MESSAGE',
+        conversationId: convId,
+        messageId: assistantMsgId,
+        updates: {
+          content: event.content,
+          statusText: event.status || '',
+          statusDetail: '',
+        },
+      });
+      break;
+
     case 'answer_with_images':
       dispatch({
         type: 'UPDATE_ASSISTANT_MESSAGE',
