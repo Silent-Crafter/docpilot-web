@@ -4,20 +4,44 @@ import MessageBubble from './MessageBubble';
 import WelcomeScreen from './WelcomeScreen';
 import MessageInput from './MessageInput';
 import { HiOutlineBars3, HiOutlineHome } from 'react-icons/hi2';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 function ChatArea({ sidebarOpen, onToggleSidebar }) {
-    const { state, dispatch } = useChat();
+    const { state, dispatch, loadChatHistory, prepareChatId } = useChat();
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
+    const { chatid } = useParams(); // undefined on "/" route
+
+    // Sync URL param → context active conversation + fetch history
+    useEffect(() => {
+        if (chatid) {
+            if (state.activeConversationId !== chatid) {
+                dispatch({ type: 'SET_ACTIVE', id: chatid });
+            }
+
+            // Only fetch history for chats that are NOT newly created in this session
+            const conv = state.conversations.find(c => c.id === chatid);
+            if (conv && !conv.isNew) {
+                loadChatHistory(chatid);
+            }
+        } else {
+            // Home route — deselect and prepare a new chat ID
+            if (state.activeConversationId !== null) {
+                dispatch({ type: 'SET_ACTIVE', id: null });
+            }
+            prepareChatId();
+        }
+    }, [chatid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const activeConversation = state.conversations.find(
-        (c) => c.id === state.activeConversationId
+        (c) => c.id === chatid
     );
 
     const messages = useMemo(() => {
         return activeConversation?.messages ?? [];
     }, [activeConversation]);
+
+    const isLoadingHistory = chatid ? !!state.loadingHistory[chatid] : false;
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,11 +84,25 @@ function ChatArea({ sidebarOpen, onToggleSidebar }) {
             </div>
 
             {/* BODY */}
-            {!activeConversation ? (
-                // ✅ FIX: force render without layout change
+            {!chatid ? (
+                // Home — no chat selected, show welcome
                 <>
                     <WelcomeScreen />
                 </>
+            ) : isLoadingHistory && messages.length === 0 ? (
+                // Loading history from API
+                <div className="messages-container">
+                    <div className="messages-list" style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        padding: '40px 0',
+                        color: 'var(--text-tertiary, #888)',
+                        fontSize: 14,
+                    }}>
+                        Loading conversation…
+                    </div>
+                </div>
             ) : (
                 <div className="messages-container">
                     <div className="messages-list">

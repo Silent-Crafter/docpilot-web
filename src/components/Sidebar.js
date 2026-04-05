@@ -18,19 +18,28 @@ function Sidebar({ isOpen, onToggle }) {
     const location = useLocation();
 
     const handleNewChat = () => {
-        dispatch({ type: 'NEW_CHAT' });
+        // Navigate to welcome screen; it will prepare a new chat ID via /chat/new
+        dispatch({ type: 'SET_ACTIVE', id: null });
         navigate('/');
     };
 
     const handleSelect = (id) => {
+        // Don't re-fetch if already on this chat
+        if (id === activeConversationId) return;
+
         dispatch({ type: 'SET_ACTIVE', id });
-        navigate('/');
+        navigate(`/chat/${id}`);
         if (window.innerWidth < 768) onToggle();
     };
 
     const handleDelete = (e, id) => {
         e.stopPropagation();
         dispatch({ type: 'DELETE_CHAT', id });
+
+        // If we're currently viewing the deleted chat, go home
+        if (activeConversationId === id) {
+            navigate('/');
+        }
     };
 
     const handleKnowledgeHub = () => {
@@ -39,6 +48,9 @@ function Sidebar({ isOpen, onToggle }) {
     };
 
     const grouped = groupByDate(conversations);
+
+    // Check if current URL is a chat URL to determine active state
+    const isChatRoute = location.pathname.startsWith('/chat/');
 
     return (
         <>
@@ -51,7 +63,7 @@ function Sidebar({ isOpen, onToggle }) {
             {/* Sidebar */}
             <aside className={`sidebar ${isOpen ? 'expanded' : 'collapsed'}`}>
                 
-                {/* HEADER (RESTORED ORIGINAL) */}
+                {/* HEADER */}
                 <div className="sidebar-header">
                     <button
                         className="sidebar-toggle-btn"
@@ -80,7 +92,7 @@ function Sidebar({ isOpen, onToggle }) {
                                     key={conv.id}
                                     className={`conversation-item ${
                                         conv.id === activeConversationId &&
-                                        location.pathname === '/'
+                                        isChatRoute
                                             ? 'active'
                                             : ''
                                     }`}

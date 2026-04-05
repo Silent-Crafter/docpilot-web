@@ -33,6 +33,16 @@ function App() {
           />
 
           <Route
+            path="/chat/:chatid"
+            element={
+              <ChatArea
+                sidebarOpen={sidebarOpen}
+                onToggleSidebar={toggleSidebar}
+              />
+            }
+          />
+
+          <Route
             path="/knowledgehub"
             element={
               <KnowledgeHub

@@ -7,66 +7,73 @@ import React, {
   useEffect,
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { streamResponse } from '../services/apiService';
+import {
+  streamResponse,
+  fetchChatHistory as apiFetchHistory,
+  createNewChat as apiCreateNewChat,
+} from '../services/apiService';
 
 const ChatContext = createContext();
 
-function createNewConversation() {
-  return {
-    id: uuidv4(),
-    title: 'New chat',
-    messages: [],
-    createdAt: new Date().toISOString(),
-  };
-}
+// ─── LocalStorage helpers (chatid + timestamp only) ──────────────────
 
-// ✅ LOAD FROM LOCALSTORAGE
-const initialState = (() => {
+const STORAGE_KEY = 'chatState';
+
+function loadConversationsMeta() {
   try {
-    const saved = localStorage.getItem('chatState');
-
-    if (!saved) {
-      return {
-        conversations: [],
-        activeConversationId: null,
-        isGenerating: false,
-      };
-    }
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return [];
 
     const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
 
-    // ✅ VALIDATION (VERY IMPORTANT)
-    if (
-      typeof parsed !== 'object' ||
-      !Array.isArray(parsed.conversations)
-    ) {
-      throw new Error("Invalid state");
-    }
-
-    return {
-      conversations: parsed.conversations || [],
-      activeConversationId: null,
-      isGenerating: false, // always reset this
-    };
-
+    // Rebuild conversation objects from stored {id, timestamp}
+    return parsed.map(({ id, timestamp }) => ({
+      id,
+      title: 'Chat',
+      createdAt: timestamp,
+      messages: [],
+    }));
   } catch (e) {
-    console.warn("Resetting corrupted chat state");
-
-    return {
-      conversations: [],
-      activeConversationId: null,
-      isGenerating: false,
-    };
+    console.warn('Resetting corrupted chat state');
+    return [];
   }
-})();
+}
+
+function saveConversationsMeta(conversations) {
+  const metaOnly = conversations.map(({ id, createdAt }) => ({
+    id,
+    timestamp: createdAt,
+  }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(metaOnly));
+}
+
+// ─── Initial state ───────────────────────────────────────────────────
+
+const initialState = {
+  conversations: loadConversationsMeta(),
+  activeConversationId: null,
+  isGenerating: false,
+  loadingHistory: {},
+};
+
+// ─── Reducer ─────────────────────────────────────────────────────────
 
 function chatReducer(state, action) {
   switch (action.type) {
     case 'NEW_CHAT': {
-      const newConv = action.conversation || createNewConversation();
+      const newConv = action.conversation;
+      // Clear old active chat's in-memory data when creating a new one
+      const updated = state.activeConversationId
+        ? state.conversations.map(c =>
+            c.id === state.activeConversationId
+              ? { ...c, isNew: false, messages: [] }
+              : c
+          )
+        : state.conversations;
       return {
         ...state,
-        conversations: [newConv, ...state.conversations],
+        conversations: [newConv, ...updated],
         activeConversationId: newConv.id,
       };
     }
@@ -78,13 +85,48 @@ function chatReducer(state, action) {
         conversations: remaining,
         activeConversationId:
           state.activeConversationId === action.id
-            ? (remaining[0]?.id || null)
+            ? null
             : state.activeConversationId,
       };
     }
 
     case 'SET_ACTIVE': {
-      return { ...state, activeConversationId: action.id };
+      if (action.id === state.activeConversationId) return state;
+      return {
+        ...state,
+        activeConversationId: action.id,
+        // Clear old active chat's messages; mark not-new so history fetches next visit
+        conversations: state.activeConversationId
+          ? state.conversations.map(c =>
+              c.id === state.activeConversationId
+                ? { ...c, isNew: false, messages: [] }
+                : c
+            )
+          : state.conversations,
+      };
+    }
+
+    case 'SET_MESSAGES': {
+      const { conversationId, messages } = action;
+      return {
+        ...state,
+        conversations: state.conversations.map(c =>
+          c.id === conversationId ? { ...c, messages } : c
+        ),
+      };
+    }
+
+    case 'LOAD_HISTORY_START': {
+      return {
+        ...state,
+        loadingHistory: { ...state.loadingHistory, [action.chatId]: true },
+      };
+    }
+
+    case 'LOAD_HISTORY_DONE': {
+      const next = { ...state.loadingHistory };
+      delete next[action.chatId];
+      return { ...state, loadingHistory: next };
     }
 
     case 'SEND_MESSAGE': {
@@ -144,6 +186,8 @@ function chatReducer(state, action) {
       return state;
   }
 }
+
+// ─── Stream event handler ────────────────────────────────────────────
 
 function handleStreamEvent(event, dispatch, convId, assistantMsgId) {
   switch (event.type) {
@@ -218,17 +262,75 @@ function handleStreamEvent(event, dispatch, convId, assistantMsgId) {
   }
 }
 
+// ─── Provider ────────────────────────────────────────────────────────
+
 export function ChatProvider({ children }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const cleanupRef = useRef(null);
+  const pendingChatIdRef = useRef(null);
 
-  // ✅ SAVE TO LOCALSTORAGE
+  // Persist metadata to localStorage whenever conversations change
   useEffect(() => {
-    localStorage.setItem('chatState', JSON.stringify(state));
-  }, [state]);
+    saveConversationsMeta(state.conversations);
+  }, [state.conversations]);
 
-  const sendMessage = useCallback((content, file = null) => {
+  // Pre-fetch a chat ID from the API (called on welcome screen mount)
+  const prepareChatId = useCallback(async () => {
+    try {
+      const data = await apiCreateNewChat();
+      pendingChatIdRef.current = data.chatid;
+    } catch (err) {
+      console.error('Failed to prepare chat ID:', err);
+    }
+  }, []);
+
+  // Load chat history from API — always fetches, caller decides when to call
+  const loadChatHistory = useCallback(async (chatId) => {
+    if (!chatId) return;
+
+    dispatch({ type: 'LOAD_HISTORY_START', chatId });
+
+    try {
+      const rawMessages = await apiFetchHistory(chatId);
+
+      // API returns: [{ role: 'user'|'ai', content }, ...]
+      const messages = rawMessages.map((msg, idx) => ({
+        id: `${chatId}-hist-${idx}`,
+        role: msg.role === 'ai' ? 'assistant' : msg.role,
+        content: msg.content,
+        timestamp: new Date().toISOString(),
+      }));
+
+      dispatch({ type: 'SET_MESSAGES', conversationId: chatId, messages });
+    } catch (err) {
+      console.error('Failed to load chat history:', err);
+    } finally {
+      dispatch({ type: 'LOAD_HISTORY_DONE', chatId });
+    }
+  }, []);
+
+  // Send a message — creates conversation on-the-fly if needed
+  const sendMessage = useCallback(async (content, file = null) => {
     let convId = state.activeConversationId;
+
+    // If no active conversation, create one using pending or fresh ID
+    if (!convId) {
+      convId = pendingChatIdRef.current;
+      if (!convId) {
+        const data = await apiCreateNewChat();
+        convId = data.chatid;
+      }
+      pendingChatIdRef.current = null;
+
+      const newConv = {
+        id: convId,
+        title: 'New chat',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        isNew: true,
+      };
+      dispatch({ type: 'NEW_CHAT', conversation: newConv });
+    }
 
     const userMessage = {
       id: uuidv4(),
@@ -237,12 +339,6 @@ export function ChatProvider({ children }) {
       timestamp: new Date().toISOString(),
       ...(file ? { attachment: { name: file.name, size: file.size } } : {}),
     };
-
-    if (!convId) {
-      const newConv = createNewConversation();
-      convId = newConv.id;
-      dispatch({ type: 'NEW_CHAT', conversation: newConv });
-    }
 
     dispatch({
       type: 'SEND_MESSAGE',
@@ -265,6 +361,7 @@ export function ChatProvider({ children }) {
 
     const cleanup = streamResponse(
       content,
+      convId,
       file,
       (event) => handleStreamEvent(event, dispatch, convId, assistantMsgId),
       (err) => {
@@ -288,10 +385,14 @@ export function ChatProvider({ children }) {
 
     if (cleanupRef.current) cleanupRef.current();
     cleanupRef.current = cleanup;
+
+    return convId;
   }, [state.activeConversationId]);
 
   return (
-    <ChatContext.Provider value={{ state, dispatch, sendMessage }}>
+    <ChatContext.Provider
+      value={{ state, dispatch, sendMessage, loadChatHistory, prepareChatId }}
+    >
       {children}
     </ChatContext.Provider>
   );
