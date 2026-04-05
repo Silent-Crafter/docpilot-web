@@ -3,27 +3,28 @@ const API_URL = 'http://localhost:31337';
 /**
  * Stream a response from the Docpilot API.
  *
- * - Text-only: GET /stream?prompt=...
- * - With file:  POST /stream (FormData: { prompt, file })
+ * - Text-only: GET /stream?prompt=...&chatid=...
+ * - With file:  POST /stream_p (JSON)
  *
  * Both return the same SSE event stream.
  *
  * @param {string} prompt
+ * @param {string} chatid - UUID for the chat session
  * @param {File|null} file
  * @param {function} onEvent  - called with each parsed LlmResponse { type, content, status }
  * @param {function} onError
  * @param {function} onDone   - called when stream ends
  * @returns {function} cleanup - call to abort the stream
  */
-export function streamResponse(prompt, file, onEvent, onError, onDone) {
+export function streamResponse(prompt, chatid, file, onEvent, onError, onDone) {
     if (file) {
-        return _streamPost(prompt, file, onEvent, onError, onDone);
+        return _streamPost(prompt, chatid, file, onEvent, onError, onDone);
     }
-    return _streamGet(prompt, onEvent, onError, onDone);
+    return _streamGet(prompt, chatid, onEvent, onError, onDone);
 }
 
-function _streamGet(prompt, onEvent, onError, onDone) {
-    const url = `${API_URL}/stream?prompt=${encodeURIComponent(prompt)}`;
+function _streamGet(prompt, chatid, onEvent, onError, onDone) {
+    const url = `${API_URL}/stream?prompt=${encodeURIComponent(prompt)}&chatid=${encodeURIComponent(chatid)}`;
     const source = new EventSource(url);
 
     source.onmessage = (event) => {
@@ -48,16 +49,15 @@ function _streamGet(prompt, onEvent, onError, onDone) {
     return () => source.close();
 }
 
-function _streamPost(prompt, file, onEvent, onError, onDone) {
-    const formData = new FormData();
-    formData.append('prompt', prompt);
-    formData.append('file', file);
-
+function _streamPost(prompt, chatid, file, onEvent, onError, onDone) {
     const controller = new AbortController();
 
-    fetch(`${API_URL}/stream`, {
+    fetch(`${API_URL}/stream_p`, {
         method: 'POST',
-        body: formData,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt, chatid, file: file ? file.name : null }),
         signal: controller.signal,
     })
         .then(async (response) => {
@@ -104,12 +104,13 @@ function _streamPost(prompt, file, onEvent, onError, onDone) {
 /**
  * One-shot generate (POST). Kept for reference.
  */
-export async function generateResponse(prompt) {
+export async function generateResponse(prompt, chatid) {
     const res = await fetch(`${API_URL}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, chatid }),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
@@ -150,16 +151,16 @@ export async function deleteDocument(id) {
  * Fetch message history for a chat from the API.
  *
  * POST /history  { chatid: "<uuid>" }
- * Returns: [{ role: 'user'|'assistant', content: '...' }, ...]
+ * Returns: [{ role: 'user'|'ai', content: '...' }, ...]
  *
- * @param {string} chatId
+ * @param {string} chatid - UUID for the chat session
  * @returns {Promise<Array<{role: string, content: string}>>}
  */
-export async function fetchChatHistory(chatId) {
+export async function fetchChatHistory(chatid) {
     const res = await fetch(`${API_URL}/history`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatid: chatId }),
+        body: JSON.stringify({ chatid }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
@@ -168,17 +169,13 @@ export async function fetchChatHistory(chatId) {
 /**
  * Create a new chat session.
  *
- * TODO: Replace with an API call once the backend supports returning UUIDs.
- * For now, generates a UUID client-side as a placeholder.
+ * GET /chat/new
+ * Returns: { chatid: "<uuid>", timestamp: "..." }
  *
- * @returns {Promise<string>} The new chat's UUID
+ * @returns {Promise<{chatid: string, timestamp: string}>}
  */
 export async function createNewChat() {
-    // Placeholder: generate UUID client-side
-    // When API is ready, replace with:
-    //   const res = await fetch(`${API_URL}/chat/new`, { method: 'POST' });
-    //   const data = await res.json();
-    //   return data.chatId;
-    const { v4: uuidv4 } = await import('uuid');
-    return uuidv4();
+    const res = await fetch(`${API_URL}/chat/new`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
 }

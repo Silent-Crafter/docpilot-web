@@ -6,7 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 function MessageInput() {
     const { sendMessage, state } = useChat();
     const navigate = useNavigate();
-    const { chatId } = useParams();
+    const { chatid } = useParams();
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
     const { isGenerating } = state;
@@ -20,21 +20,25 @@ function MessageInput() {
         el.style.height = Math.min(el.scrollHeight, 200) + 'px';
     }, []);
 
-    const handleSubmit = useCallback(() => {
+    const handleSubmit = useCallback(async () => {
         const el = textareaRef.current;
         if (!el) return;
         const text = el.value.trim();
         if (!text || isGenerating) return;
-        const convId = sendMessage(text, attachedFile);
+        
         el.value = '';
         el.style.height = 'auto';
+        
+        const fileToAttach = attachedFile;
         setAttachedFile(null);
 
-        // If we were on the home screen (no chatId), navigate to the new chat URL
-        if (!chatId && convId) {
+        const convId = await sendMessage(text, fileToAttach);
+
+        // If we were on the home screen (no chatid), navigate to the new chat URL
+        if (!chatid && convId) {
             navigate(`/chat/${convId}`);
         }
-    }, [sendMessage, isGenerating, attachedFile, chatId, navigate]);
+    }, [sendMessage, isGenerating, attachedFile, chatid, navigate]);
 
     const handleKeyDown = useCallback((e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

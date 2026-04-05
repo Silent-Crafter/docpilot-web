@@ -33,7 +33,7 @@ function App() {
           />
 
           <Route
-            path="/chat/:chatId"
+            path="/chat/:chatid"
             element={
               <ChatArea
                 sidebarOpen={sidebarOpen}

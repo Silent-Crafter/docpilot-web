@@ -7,36 +7,41 @@ import { HiOutlineBars3, HiOutlineHome } from 'react-icons/hi2';
 import { useNavigate, useParams } from 'react-router-dom';
 
 function ChatArea({ sidebarOpen, onToggleSidebar }) {
-    const { state, dispatch, loadChatHistory } = useChat();
+    const { state, dispatch, loadChatHistory, prepareChatId } = useChat();
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
-    const { chatId } = useParams(); // undefined on "/" route
+    const { chatid } = useParams(); // undefined on "/" route
 
-    // Sync URL param → context active conversation
+    // Sync URL param → context active conversation + fetch history
     useEffect(() => {
-        if (chatId) {
-            if (state.activeConversationId !== chatId) {
-                dispatch({ type: 'SET_ACTIVE', id: chatId });
+        if (chatid) {
+            if (state.activeConversationId !== chatid) {
+                dispatch({ type: 'SET_ACTIVE', id: chatid });
             }
-            // Fetch message history from API
-            loadChatHistory(chatId);
+
+            // Only fetch history for chats that are NOT newly created in this session
+            const conv = state.conversations.find(c => c.id === chatid);
+            if (conv && !conv.isNew) {
+                loadChatHistory(chatid);
+            }
         } else {
-            // On home route, deselect
+            // Home route — deselect and prepare a new chat ID
             if (state.activeConversationId !== null) {
                 dispatch({ type: 'SET_ACTIVE', id: null });
             }
+            prepareChatId();
         }
-    }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [chatid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const activeConversation = state.conversations.find(
-        (c) => c.id === chatId
+        (c) => c.id === chatid
     );
 
     const messages = useMemo(() => {
         return activeConversation?.messages ?? [];
     }, [activeConversation]);
 
-    const isLoadingHistory = chatId ? !!state.loadingHistory[chatId] : false;
+    const isLoadingHistory = chatid ? !!state.loadingHistory[chatid] : false;
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,8 +84,8 @@ function ChatArea({ sidebarOpen, onToggleSidebar }) {
             </div>
 
             {/* BODY */}
-            {!chatId ? (
-                // Home — no chat selected
+            {!chatid ? (
+                // Home — no chat selected, show welcome
                 <>
                     <WelcomeScreen />
                 </>

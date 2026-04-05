@@ -8,21 +8,25 @@ import {
     HiOutlineFolder,
 } from 'react-icons/hi2';
 
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 function Sidebar({ isOpen, onToggle }) {
-    const { state, dispatch, startNewChat } = useChat();
+    const { state, dispatch } = useChat();
     const { conversations, activeConversationId } = state;
 
     const navigate = useNavigate();
     const location = useLocation();
 
-    const handleNewChat = async () => {
-        const chatId = await startNewChat();
-        navigate(`/chat/${chatId}`);
+    const handleNewChat = () => {
+        // Navigate to welcome screen; it will prepare a new chat ID via /chat/new
+        dispatch({ type: 'SET_ACTIVE', id: null });
+        navigate('/');
     };
 
     const handleSelect = (id) => {
+        // Don't re-fetch if already on this chat
+        if (id === activeConversationId) return;
+
         dispatch({ type: 'SET_ACTIVE', id });
         navigate(`/chat/${id}`);
         if (window.innerWidth < 768) onToggle();

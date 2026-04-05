@@ -15,7 +15,7 @@ import {
 
 const ChatContext = createContext();
 
-// ─── LocalStorage helpers (metadata only, no messages) ───────────────
+// ─── LocalStorage helpers (chatid + timestamp only) ──────────────────
 
 const STORAGE_KEY = 'chatState';
 
@@ -25,16 +25,14 @@ function loadConversationsMeta() {
     if (!saved) return [];
 
     const parsed = JSON.parse(saved);
-    if (typeof parsed !== 'object' || !Array.isArray(parsed.conversations)) {
-      throw new Error('Invalid state');
-    }
+    if (!Array.isArray(parsed)) return [];
 
-    // Strip messages — only keep metadata
-    return parsed.conversations.map(({ id, title, createdAt }) => ({
+    // Rebuild conversation objects from stored {id, timestamp}
+    return parsed.map(({ id, timestamp }) => ({
       id,
-      title,
-      createdAt,
-      messages: [], // always empty on load
+      title: 'Chat',
+      createdAt: timestamp,
+      messages: [],
     }));
   } catch (e) {
     console.warn('Resetting corrupted chat state');
@@ -43,12 +41,11 @@ function loadConversationsMeta() {
 }
 
 function saveConversationsMeta(conversations) {
-  const metaOnly = conversations.map(({ id, title, createdAt }) => ({
+  const metaOnly = conversations.map(({ id, createdAt }) => ({
     id,
-    title,
-    createdAt,
+    timestamp: createdAt,
   }));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations: metaOnly }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(metaOnly));
 }
 
 // ─── Initial state ───────────────────────────────────────────────────
@@ -57,7 +54,7 @@ const initialState = {
   conversations: loadConversationsMeta(),
   activeConversationId: null,
   isGenerating: false,
-  loadingHistory: {}, // { [chatId]: boolean }
+  loadingHistory: {},
 };
 
 // ─── Reducer ─────────────────────────────────────────────────────────
@@ -66,9 +63,17 @@ function chatReducer(state, action) {
   switch (action.type) {
     case 'NEW_CHAT': {
       const newConv = action.conversation;
+      // Clear old active chat's in-memory data when creating a new one
+      const updated = state.activeConversationId
+        ? state.conversations.map(c =>
+            c.id === state.activeConversationId
+              ? { ...c, isNew: false, messages: [] }
+              : c
+          )
+        : state.conversations;
       return {
         ...state,
-        conversations: [newConv, ...state.conversations],
+        conversations: [newConv, ...updated],
         activeConversationId: newConv.id,
       };
     }
@@ -80,13 +85,25 @@ function chatReducer(state, action) {
         conversations: remaining,
         activeConversationId:
           state.activeConversationId === action.id
-            ? (remaining[0]?.id || null)
+            ? null
             : state.activeConversationId,
       };
     }
 
     case 'SET_ACTIVE': {
-      return { ...state, activeConversationId: action.id };
+      if (action.id === state.activeConversationId) return state;
+      return {
+        ...state,
+        activeConversationId: action.id,
+        // Clear old active chat's messages; mark not-new so history fetches next visit
+        conversations: state.activeConversationId
+          ? state.conversations.map(c =>
+              c.id === state.activeConversationId
+                ? { ...c, isNew: false, messages: [] }
+                : c
+            )
+          : state.conversations,
+      };
     }
 
     case 'SET_MESSAGES': {
@@ -250,32 +267,36 @@ function handleStreamEvent(event, dispatch, convId, assistantMsgId) {
 export function ChatProvider({ children }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const cleanupRef = useRef(null);
-  const historyFetchedRef = useRef(new Set()); // track which chats have been fetched
+  const pendingChatIdRef = useRef(null);
 
-  // Persist metadata-only to localStorage whenever conversations change
+  // Persist metadata to localStorage whenever conversations change
   useEffect(() => {
     saveConversationsMeta(state.conversations);
   }, [state.conversations]);
 
-  // Load chat history from API
+  // Pre-fetch a chat ID from the API (called on welcome screen mount)
+  const prepareChatId = useCallback(async () => {
+    try {
+      const data = await apiCreateNewChat();
+      pendingChatIdRef.current = data.chatid;
+    } catch (err) {
+      console.error('Failed to prepare chat ID:', err);
+    }
+  }, []);
+
+  // Load chat history from API — always fetches, caller decides when to call
   const loadChatHistory = useCallback(async (chatId) => {
     if (!chatId) return;
 
-    // Don't re-fetch if already loaded or currently loading
-    if (historyFetchedRef.current.has(chatId)) return;
-    if (state.loadingHistory[chatId]) return;
-
-    historyFetchedRef.current.add(chatId);
     dispatch({ type: 'LOAD_HISTORY_START', chatId });
 
     try {
       const rawMessages = await apiFetchHistory(chatId);
 
-      // API returns: [{ role, content }, ...]
-      // Normalize into our internal format with id + timestamp
+      // API returns: [{ role: 'user'|'ai', content }, ...]
       const messages = rawMessages.map((msg, idx) => ({
         id: `${chatId}-hist-${idx}`,
-        role: msg.role,
+        role: msg.role === 'ai' ? 'assistant' : msg.role,
         content: msg.content,
         timestamp: new Date().toISOString(),
       }));
@@ -283,27 +304,33 @@ export function ChatProvider({ children }) {
       dispatch({ type: 'SET_MESSAGES', conversationId: chatId, messages });
     } catch (err) {
       console.error('Failed to load chat history:', err);
-      // Even on failure, don't block — just leave messages empty
     } finally {
       dispatch({ type: 'LOAD_HISTORY_DONE', chatId });
     }
-  }, [state.loadingHistory]);
-
-  // Create a new chat (placeholder UUID for now)
-  const startNewChat = useCallback(async () => {
-    const chatId = await apiCreateNewChat();
-    const newConv = {
-      id: chatId,
-      title: 'New chat',
-      messages: [],
-      createdAt: new Date().toISOString(),
-    };
-    dispatch({ type: 'NEW_CHAT', conversation: newConv });
-    return chatId;
   }, []);
 
-  const sendMessage = useCallback((content, file = null) => {
+  // Send a message — creates conversation on-the-fly if needed
+  const sendMessage = useCallback(async (content, file = null) => {
     let convId = state.activeConversationId;
+
+    // If no active conversation, create one using pending or fresh ID
+    if (!convId) {
+      convId = pendingChatIdRef.current;
+      if (!convId) {
+        const data = await apiCreateNewChat();
+        convId = data.chatid;
+      }
+      pendingChatIdRef.current = null;
+
+      const newConv = {
+        id: convId,
+        title: 'New chat',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        isNew: true,
+      };
+      dispatch({ type: 'NEW_CHAT', conversation: newConv });
+    }
 
     const userMessage = {
       id: uuidv4(),
@@ -312,19 +339,6 @@ export function ChatProvider({ children }) {
       timestamp: new Date().toISOString(),
       ...(file ? { attachment: { name: file.name, size: file.size } } : {}),
     };
-
-    // If no active conversation, create one synchronously with client-side UUID
-    // (the async startNewChat is used from UI; this is a fallback)
-    if (!convId) {
-      convId = uuidv4();
-      const newConv = {
-        id: convId,
-        title: 'New chat',
-        messages: [],
-        createdAt: new Date().toISOString(),
-      };
-      dispatch({ type: 'NEW_CHAT', conversation: newConv });
-    }
 
     dispatch({
       type: 'SEND_MESSAGE',
@@ -347,6 +361,7 @@ export function ChatProvider({ children }) {
 
     const cleanup = streamResponse(
       content,
+      convId,
       file,
       (event) => handleStreamEvent(event, dispatch, convId, assistantMsgId),
       (err) => {
@@ -376,7 +391,7 @@ export function ChatProvider({ children }) {
 
   return (
     <ChatContext.Provider
-      value={{ state, dispatch, sendMessage, loadChatHistory, startNewChat }}
+      value={{ state, dispatch, sendMessage, loadChatHistory, prepareChatId }}
     >
       {children}
     </ChatContext.Provider>
