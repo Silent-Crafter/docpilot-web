@@ -52,12 +52,17 @@ function _streamGet(prompt, chatid, onEvent, onError, onDone) {
 function _streamPost(prompt, chatid, file, onEvent, onError, onDone) {
     const controller = new AbortController();
 
-    fetch(`${API_URL}/stream_p`, {
+    const formData = new FormData()
+    formData.append("prompt", prompt)
+    formData.append("chatid", chatid)
+
+    if (file) {
+        formData.append("file", file);
+    }
+
+    fetch(`${API_URL}/stream`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt, chatid, file: file ? file.name : null }),
+        body: formData,
         signal: controller.signal,
     })
         .then(async (response) => {

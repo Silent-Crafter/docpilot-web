@@ -17,6 +17,7 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState('');
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef(null);
 
@@ -44,13 +45,18 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
     const handleUpload = async (file) => {
         if (!file) return;
         setUploading(true);
+        setUploadStatus('Uploading & processing...');
         try {
             const doc = await uploadDocument(file);
             setDocuments((prev) => [doc, ...prev]);
+            if (doc.indexed === false) {
+                setError('Document uploaded but indexing failed. It will be indexed on next server restart.');
+            }
         } catch (err) {
             setError('Failed to upload document.');
         } finally {
             setUploading(false);
+            setUploadStatus('');
         }
     };
 
@@ -143,7 +149,12 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
             </div>
 
             {/* CONTENT */}
-            <div className="knowledge-hub">
+            <div
+                className="knowledge-hub"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
 
                 <div className="knowledge-header">
 
@@ -159,7 +170,7 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                             disabled={uploading}
                         >
                             <HiOutlineCloudArrowUp size={16} />
-                            {uploading ? 'Uploading...' : 'Upload Document'}
+                            {uploading ? (uploadStatus || 'Uploading...') : 'Upload Document'}
                         </button>
 
                         <input
@@ -171,16 +182,18 @@ function KnowledgeHub({ sidebarOpen, onToggleSidebar }) {
                     </div>
                 </div>
 
-                <div
-                    className={`drop-zone ${dragOver ? 'active' : ''}`}
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                >
-                    <HiOutlineCloudArrowUp size={36} />
-                    <p>Drag & drop a document here to upload</p>
-                    <span>or click "Upload Document" above</span>
-                </div>
+                {(documents.length === 0 || dragOver) && (
+                    <div
+                        className={`drop-zone ${dragOver ? 'active' : ''}`}
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                    >
+                        <HiOutlineCloudArrowUp size={36} />
+                        <p>Drag &amp; drop a document here to upload</p>
+                        <span>or click &quot;Upload Document&quot; above</span>
+                    </div>
+                )}
 
                 {error && (
                     <div className="kh-error">
